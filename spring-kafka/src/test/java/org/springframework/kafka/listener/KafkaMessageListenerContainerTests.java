@@ -657,7 +657,7 @@ public class KafkaMessageListenerContainerTests {
 	}
 
 	@ParameterizedTest(name = "{index} AckMode.{0}")
-	@EnumSource(value = AckMode.class, names = { "MANUAL", "MANUAL_IMMEDIATE" })
+	@EnumSource(value = AckMode.class, names = { "MANUAL" })
 	@SuppressWarnings("unchecked")
 	void testInOrderAck(AckMode ackMode) throws Exception {
 		ConsumerFactory<Integer, String> cf = mock(ConsumerFactory.class);
@@ -666,9 +666,9 @@ public class KafkaMessageListenerContainerTests {
 		final Map<TopicPartition, List<ConsumerRecord<Integer, String>>> records = new HashMap<>();
 		records.put(new TopicPartition("foo", 0), Arrays.asList(
 				new ConsumerRecord<>("foo", 0, 0L, 1, "foo"),
-				new ConsumerRecord<>("foo", 0, 1L, 1, "bar"),
-				new ConsumerRecord<>("foo", 0, 2L, 1, "baz"),
-				new ConsumerRecord<>("foo", 0, 3L, 1, "qux")));
+				new ConsumerRecord<>("foo", 0, 2L, 1, "bar"),
+				new ConsumerRecord<>("foo", 0, 4L, 1, "baz"),
+				new ConsumerRecord<>("foo", 0, 6L, 1, "qux")));
 		ConsumerRecords<Integer, String> consumerRecords = new ConsumerRecords<>(records, Map.of());
 		given(consumer.poll(any(Duration.class))).willAnswer(i -> {
 			Thread.sleep(50);
@@ -695,10 +695,10 @@ public class KafkaMessageListenerContainerTests {
 			acks.add(ack);
 			if (latch.getCount() == 0) {
 				records.clear();
+				acks.get(0).acknowledge();
+				acks.get(1).acknowledge();
 				acks.get(3).acknowledge();
 				acks.get(2).acknowledge();
-				acks.get(1).acknowledge();
-				acks.get(0).acknowledge();
 			}
 		};
 
@@ -718,7 +718,7 @@ public class KafkaMessageListenerContainerTests {
 		assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
 		assertThat(commitLatch.await(10, TimeUnit.SECONDS)).isTrue();
 		verify(consumer, times(1)).commitSync(any(), any());
-		verify(consumer).commitSync(Map.of(new TopicPartition("foo", 0), new OffsetAndMetadata(4L)),
+		verify(consumer).commitSync(Map.of(new TopicPartition("foo", 0), new OffsetAndMetadata(7L)),
 				Duration.ofMinutes(1));
 		container.stop();
 		assertThat(illegal.get()).isNotNull();

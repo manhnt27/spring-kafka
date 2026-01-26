@@ -2048,6 +2048,7 @@ public class KafkaMessageListenerContainer<K, V> // NOSONAR line count
 		private void processAck(ConsumerRecord<K, V> cRecord) {
 			if (!Thread.currentThread().equals(this.consumerThread)) {
 				try {
+					logger.info("Go to consumer wake-up section");
 					this.acks.put(cRecord);
 					if (this.isManualImmediateAck || this.pausedForAsyncAcks) {  // NOSONAR (sync)
 						this.consumer.wakeup();
@@ -2061,6 +2062,7 @@ public class KafkaMessageListenerContainer<K, V> // NOSONAR line count
 			else {
 				if (this.isManualImmediateAck) {
 					try {
+						logger.info("Go to ack immediate section");
 						ackImmediate(cRecord);
 					}
 					catch (@SuppressWarnings(UNUSED) WakeupException e) {
@@ -2068,6 +2070,7 @@ public class KafkaMessageListenerContainer<K, V> // NOSONAR line count
 					}
 				}
 				else {
+					logger.info("Go to add offset section");
 					addOffset(cRecord);
 				}
 			}
@@ -2106,16 +2109,21 @@ public class KafkaMessageListenerContainer<K, V> // NOSONAR line count
 		}
 
 		private synchronized void ackInOrder(ConsumerRecord<K, V> cRecord) {
+			logger.info("Ack in order: " + KafkaUtils.format(cRecord));
+			logger.info("Current offsets in this batch: " + this.offsetsInThisBatch);
+			logger.info("Current deferred offsets: " + this.deferredOffsets);
 			TopicPartition part = new TopicPartition(cRecord.topic(), cRecord.partition());
 			List<Long> offs = Objects.requireNonNull(this.offsetsInThisBatch).get(part);
+			logger.info("Offsets for partition " + part + ": " + offs);
 			if (!ObjectUtils.isEmpty(offs)) {
 				List<ConsumerRecord<K, V>> deferred = Objects.requireNonNull(this.deferredOffsets).get(part);
 				if (offs.get(0) == cRecord.offset()) {
+					logger.info("Go to before ack processing");
 					offs.remove(0);
 					ConsumerRecord<K, V> recordToAck = cRecord;
 					if (!CollectionUtils.isEmpty(deferred)) {
 						deferred.sort(Comparator.comparingLong(ConsumerRecord::offset));
-						while (!ObjectUtils.isEmpty(deferred) && deferred.get(0).offset() == recordToAck.offset() + 1) {
+						while (!ObjectUtils.isEmpty(deferred)) {
 							recordToAck = deferred.remove(0);
 							offs.remove(0);
 						}
@@ -2131,6 +2139,7 @@ public class KafkaMessageListenerContainer<K, V> // NOSONAR line count
 							+ "; you are acknowledging a stale record: " + KafkaUtils.format(cRecord));
 				}
 				else {
+					logger.info("Go to defer ack section");
 					if (deferred != null) {
 						deferred.add(cRecord);
 					}
@@ -2792,6 +2801,7 @@ public class KafkaMessageListenerContainer<K, V> // NOSONAR line count
 				recordInterceptAfter(cRecord, null);
 			}
 			catch (RuntimeException e) {
+				logger.info("Catch exception for invoking error handler for record: ");
 				failureTimer(sample, cRecord, e);
 				recordInterceptAfter(cRecord, e);
 				if (!this.isListenerAdapterObservationAware) {
@@ -2838,6 +2848,7 @@ public class KafkaMessageListenerContainer<K, V> // NOSONAR line count
 						|| !cRecord.equals(this.remainingRecords.iterator().next())) {
 
 					if (this.offsetsInThisBatch != null) { // NOSONAR (sync)
+						logger.info("Go to commit offsets after handling error for record: ");
 						ackInOrder(cRecord);
 					}
 					else {
@@ -3341,6 +3352,7 @@ public class KafkaMessageListenerContainer<K, V> // NOSONAR line count
 
 		private void commitIfNecessary() {
 			Map<TopicPartition, OffsetAndMetadata> commits = buildCommits();
+			this.logger.info(() -> "Commit list: " + commits);
 			this.logger.debug(() -> "Commit list: " + commits);
 			if (!commits.isEmpty()) {
 				this.commitLogger.log(() -> COMMITTING + commits);

@@ -86,6 +86,7 @@ nohttp {
 
 allprojects {
 	group = 'org.springframework.kafka'
+    version = '4.0.1-patched#2'
 
 	apply plugin: 'io.spring.dependency-management'
 
